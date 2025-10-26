@@ -7,7 +7,7 @@ from textual.app import App, ComposeResult
 from textual.containers import Container
 from textual.widgets import DataTable, Footer, Header
 
-from . import task_1, task_3, task_4, domain
+import task_1, task_3, task_4, domain
 
 def main(
     source: str,
