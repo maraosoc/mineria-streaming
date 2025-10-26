@@ -2,12 +2,12 @@ import datetime
 import json
 import pathlib
 from typing import Iterator
-
+import threading
 from textual.app import App, ComposeResult
 from textual.containers import Container
 from textual.widgets import DataTable, Footer, Header
 
-from . import domain, task_1
+import  task_4, domain
 
 
 def main(
@@ -18,6 +18,8 @@ def main(
     match task:
         case "task_1":
             method = task_1.compute
+        case "task_4":
+            method = task_4.compute
         case _:
             raise ValueError(f"Invalid task: {task}")
 
@@ -25,8 +27,8 @@ def main(
     if config is not None:
         with open(config, "r") as file:
             kwargs = json.load(file)
-
-    app = LiveDataApp(generator=method(source, **kwargs))
+    stop_event = threading.Event()
+    app = LiveDataApp(generator=method(source, stop_event, **kwargs))
     app.run()
 
 
@@ -72,13 +74,15 @@ class LiveDataApp(App):
         table.add_row(
             "Last updated", datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         )
+        with open("results_log.csv", "a") as f:
+            f.write(f"{datetime.datetime.now()},{result.value:.4f},{result.newest_considered},{result.oldest_considered}\n")
 
 
 def _cli() -> None:
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("source", type=str)
+    parser.add_argument("--source", type=str)
     parser.add_argument("--task", type=str, default="task_1")
     parser.add_argument("--config", type=pathlib.Path, default=None)
     args = parser.parse_args()
