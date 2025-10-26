@@ -2,7 +2,16 @@ import datetime
 from typing import NamedTuple, TypedDict
 
 
-class Result(NamedTuple):
+# class Result(NamedTuple):
+#     value: float
+#     newest_considered: datetime.datetime
+#     oldest_considered: datetime.datetime
+
+
+from dataclasses import dataclass
+
+@dataclass
+class Result:
     value: float
     newest_considered: datetime.datetime
     oldest_considered: datetime.datetime
