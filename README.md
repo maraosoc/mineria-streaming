@@ -38,7 +38,7 @@ Cada tarea implementa una técnica distinta de análisis incremental o probabil�
 | :---- | :------------------------------------------------------------------------------------------- | :-------------- | :--------------------- |
 | **1** | Cálculo incremental del promedio de peticiones exitosas por servicio.                        | `src/task_1.py` | `tests/test_task_1.py` |
 | **2** | Cómputo de la tasa de errores en ventanas deslizantes de 1 minuto.                           | `src/task_2.py` | `tests/test_task_2.py` |
-| **3** | Implementación del algoritmo *Reservoir Sampling* para identificar el código HTTP más común. | `src/task_3.py` | `tests/test_task_3.py` |
+| **3** | Implementación del algoritmo *Reservoir Sampling* para identificar el código HTTP más común. El algoritmo de Reservoir Sampling garantiza que cada elemento del stream tenga la misma probabilidad de estar en el reservorio, incluso cuando no conocemos el tamaño total del stream de antemano. | `src/task_3.py` | `tests/test_task_3.py` |
 | **4** | Implementación de un *Bloom Filter* para filtrar mensajes de interés en flujos masivos.      | `src/task_4.py` | `tests/test_task_4.py` |
 
 ## Instrucciones de ejecución
@@ -53,9 +53,27 @@ Cada tarea implementa una técnica distinta de análisis incremental o probabil�
    python scripts/generator.py --output_dir data/ --num_files 10 --events_per_file 1000
    ```
 3. Ejecutar las tareas:
+
+### Tarea 1
    ```bash
    python src/main.py --task 1 --data_dir data/
    ```
+
+### Tarea 2
+   ```bash
+   python src/main.py --task 2 --data_dir data/
+   ```
+
+### Tarea 3
+   ```bash
+   python -m src.main --source data --task task_3 --config config_task_3.json
+   ```
+
+### Tarea 4
+   ```bash
+   python -m src.main --source data --task task_4 --config config_task_4.json
+   ```
+
 ## Pruebas unitarias
 Cada tarea incluye su propio módulo de test.
 Ejecuta todos los tests con:
