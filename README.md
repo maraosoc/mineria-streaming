@@ -66,7 +66,7 @@ Cada tarea implementa una técnica distinta de análisis incremental o probabil�
 
 ### Tarea 3
    ```bash
-   python -m src.main --source data --task task_3 --config config_task_3.json
+   python -m src.main --source data --task task_3 --config .\src\config\config_task_3.json
    ```
 
 ### Tarea 4
@@ -82,8 +82,32 @@ pytest -v
 ```
 O para una tarea especifica:
 ```bash
-pytest tests/test_task_1.py -v
+python -m pytest tests/test_task_1.py -v
 ```
+
+### Explicación de los test por tarea:
+#### Test 3
+✅ test_reservoir_sampling_basic - Verifica el funcionamiento básico del reservoir sampling con distribución equitativa
+
+✅ test_reservoir_sampling_majority - Verifica que el algoritmo identifica correctamente el código HTTP más común cuando hay una mayoría clara (80% de 200s vs 20% de 500s)
+
+✅ test_reservoir_sampling_probability - Verifica que el reservoir sampling mantiene probabilidades aproximadamente iguales con 50 iteraciones
+
+✅ test_reservoir_with_multiple_codes - Verifica que el algoritmo funciona con múltiples códigos de estado diferentes (200, 500, 404, 503)
+
+✅ test_reservoir_size_respected - Verifica que el parámetro de tamaño del reservorio se respeta correctamente
+
+✅ test_empty_source - Verifica que el algoritmo maneja correctamente un directorio vacío y luego procesa datos cuando se agregan
+
+Lo que verifican estos tests:
+- Correctitud del algoritmo: El reservoir sampling mantiene una muestra representativa
+- Tamaño del reservorio: Se respeta el parámetro reservoir_size
+- Probabilidad uniforme: Cada elemento tiene la misma probabilidad de estar en el reservorio
+- Manejo de múltiples códigos: Funciona con diversos códigos HTTP
+- Robustez: Maneja casos edge como directorios vacíos
+- Detección del más común: Identifica correctamente el código más frecuente
+Todos los tests pasaron en 8.25 segundos
+
 ## Docker
 Compila y ejecuta el proyecto usando Docker:
 ```bash

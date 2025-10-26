@@ -7,7 +7,7 @@ from textual.app import App, ComposeResult
 from textual.containers import Container
 from textual.widgets import DataTable, Footer, Header
 
-import  task_4, domain
+from . import task_3, task_4, domain
 
 
 def main(
@@ -18,6 +18,8 @@ def main(
     match task:
         case "task_1":
             method = task_1.compute
+        case "task_3":
+            method = task_3.compute
         case "task_4":
             method = task_4.compute
         case _:
@@ -28,7 +30,7 @@ def main(
         with open(config, "r") as file:
             kwargs = json.load(file)
     stop_event = threading.Event()
-    app = LiveDataApp(generator=method(source, stop_event, **kwargs))
+    app = LiveDataApp(generator=method(source, stop_event, **kwargs), stop_event=stop_event)
     app.run()
 
 
@@ -38,8 +40,9 @@ class LiveDataApp(App):
     # Bind keys to actions. "q" will quit the app.
     BINDINGS = [("q", "quit", "Quit")]
 
-    def __init__(self, generator: Iterator[domain.Result]):
+    def __init__(self, generator: Iterator[domain.Result], stop_event: threading.Event):
         self._generator = generator
+        self._stop_event = stop_event
         super().__init__()
 
     def compose(self) -> ComposeResult:
@@ -56,26 +59,35 @@ class LiveDataApp(App):
         table.add_columns("Field", "Value")
         self.set_interval(0.3, self.update_data)
 
+    def on_unmount(self) -> None:
+        """Called when the app is about to be unmounted."""
+        # Set the stop event to signal threads to stop
+        self._stop_event.set()
+
     def update_data(self) -> None:
         """Method to update the table with new data."""
-        # Get the DataTable widget
-        table = self.query_one(DataTable)
+        try:
+            # Get the DataTable widget
+            table = self.query_one(DataTable)
 
-        result = next(self._generator)
+            result = next(self._generator)
 
-        table.clear()
-        table.add_row("Value", f"{result.value:.4f}")
-        table.add_row(
-            "Newest Considered", result.newest_considered.strftime("%Y-%m-%d %H:%M:%S")
-        )
-        table.add_row(
-            "Oldest Considered", result.oldest_considered.strftime("%Y-%m-%d %H:%M:%S")
-        )
-        table.add_row(
-            "Last updated", datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        )
-        with open("results_log.csv", "a") as f:
-            f.write(f"{datetime.datetime.now()},{result.value:.4f},{result.newest_considered},{result.oldest_considered}\n")
+            table.clear()
+            table.add_row("Value", f"{result.value:.4f}")
+            table.add_row(
+                "Newest Considered", result.newest_considered.strftime("%Y-%m-%d %H:%M:%S")
+            )
+            table.add_row(
+                "Oldest Considered", result.oldest_considered.strftime("%Y-%m-%d %H:%M:%S")
+            )
+            table.add_row(
+                "Last updated", datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            )
+            with open("results_log.csv", "a") as f:
+                f.write(f"{datetime.datetime.now()},{result.value:.4f},{result.newest_considered},{result.oldest_considered}\n")
+        except StopIteration:
+            # If the generator is exhausted, stop the app
+            self.exit()
 
 
 def _cli() -> None:
