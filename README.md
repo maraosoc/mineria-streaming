@@ -2,7 +2,7 @@
 > Realizado por: Manuela Ramos Ospina, Paula Andrea Pirela Rios y Carlos Eduardo Baez Coronado
 
 # Video explicativo
-[![Streaming Data Processing Lab](https://img.youtube.com/vi/3b0m8gk6b2o/0.jpg)](https://www.youtube.com/watch?v=3b0m8gk6b2o)
+[![Streaming Data Processing Lab](https://img.youtube.com/vi/9TGhIqmpdgo/0.jpg)](https://www.youtube.com/watch?v=9TGhIqmpdgo)
 
 Este proyecto implementa diferentes enfoques para procesar flujos de datos (streams) en tiempo real, simulando un sistema que recibe logs de múltiples microservicios.
 Cada tarea implementa una técnica distinta de análisis incremental o probabilístico sobre datos en continuo crecimiento.
