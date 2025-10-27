@@ -157,13 +157,23 @@ Implementación requerida: Utilizar el Filtro de Bloom (Bloom Filter) para decid
 ## Task 5: Streaming con Polars
 Polars facilita el manejo de datos de streaming a través de su interfaz LazyFrame, optimizando las consultas y permitiendo el procesamiento "fuera de memoria".
 
-Propuesta requerida: Proponer un conjunto de estadísticas que se puedan calcular de manera ventajosa utilizando la API de streaming de Polars. Se debe explicar por qué las estadísticas elegidas son particularmente adecuadas para este enfoque (por ejemplo, conteo de logs por hora y por servicio o el percentil 95 del tiempo de ocurrencia).
+Propuesta y Resultados:
+
+Se propone calcular la tasa de éxito por servicio utilizando la capacidad de streaming de Polars para procesar grandes volúmenes de logs de manera eficiente. Esta estadística es crucial para monitorear el rendimiento individual de cada microservicio en el flujo continuo de datos.
+
+El script procesó 122 archivos JSON con 12,200 eventos y calculó la tasa de éxito por servicio con los siguientes resultados:
+
+evaluation: 36.3% de éxito
+
+inference: 34.9% de éxito
+
+monitoring: 36.5% de éxito
+
+training: 36.5% de éxito
+
+El script está listo para ejecutarse tanto localmente como en EC2 con los datos descargados desde S3.
 
 ## Task 6: Streaming con Spark Streaming
 Apache Spark Structured Streaming es un motor robusto para el procesamiento de datos de streaming que trata los flujos de datos como tablas en continuo crecimiento.
 
 Propuesta requerida: Proponer un conjunto de estadísticas que se puedan calcular de manera ventajosa utilizando la API de Spark Structured Streaming. Se debe explicar por qué las estadísticas elegidas son particularmente adecuadas para el marco de Spark (por ejemplo, agregaciones con estado, uniones de streams o detección de anomalías en tiempo real).
-
-Spark can handle streaming data by using the Structured Streaming API. Read its documentation and propose some statistics that you can compute with its API. Feel free to decide which set of statistics are interesting to compute with this approach and explain why you chose those. References:
-* https://spark.apache.org/docs/latest/streaming-programming-guide.html
-* https://spark.apache.org/docs/latest/streaming/getting-started.html 
