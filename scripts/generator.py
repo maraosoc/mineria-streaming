@@ -54,7 +54,7 @@ class _S3Writer:
     def __init__(self, path: str):
         *_, self._bucket, self._prefix = path.split("/", 3)
         self._s3 = boto3.client("s3")
-        self._s3.create_bucket(Bucket=self._bucket)
+        # self._s3.create_bucket(Bucket=self._bucket)
 
     def __call__(self, event: Event) -> None:
         payload = json.dumps(event)

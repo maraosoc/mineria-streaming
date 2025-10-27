@@ -1,5 +1,5 @@
 {
-  "filter_file": "src/task_4/known_messages.txt",
+  "filter_file": "src/config/known_messages.txt",
   "m_bits": 500000,
   "k_hashes": 8
 }
