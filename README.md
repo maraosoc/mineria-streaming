@@ -1,7 +1,12 @@
 # Streaming Data Processing Lab
 > Realizado por: Manuela Ramos Ospina, Paula Andrea Pirela Rios y Carlos Eduardo Baez Coronado
+
+# Video explicativo
+[![Streaming Data Processing Lab](https://img.youtube.com/vi/3b0m8gk6b2o/0.jpg)](https://www.youtube.com/watch?v=3b0m8gk6b2o)
+
 Este proyecto implementa diferentes enfoques para procesar flujos de datos (streams) en tiempo real, simulando un sistema que recibe logs de múltiples microservicios.
 Cada tarea implementa una técnica distinta de análisis incremental o probabilístico sobre datos en continuo crecimiento.
+
 ## Estructura del Repositorio
 
 ```
@@ -17,7 +22,9 @@ Cada tarea implementa una técnica distinta de análisis incremental o probabil�
 │   ├── task_1.py            # Tarea 1: Promedios acumulados (Running Averages)
 │   ├── task_2.py            # Tarea 2: Ventanas deslizantes (Sliding Windows)
 │   ├── task_3.py            # Tarea 3: Muestreo aleatorio (Reservoir Sampling)
-│   └── task_4.py            # Tarea 4: Filtro de Bloom (Bloom Filter)
+│   ├── task_4.py            # Tarea 4: Filtro de Bloom (Bloom Filter)
+│   ├── task_5/              # Tarea 5: Implementación con Polars
+│   └── task_6/              # Tarea 6: Implementación con Spark Streaming
 │
 ├── tests/                   # Pruebas unitarias para cada tarea
 │   ├── __init__.py
@@ -29,7 +36,7 @@ Cada tarea implementa una técnica distinta de análisis incremental o probabil�
 ├── compose.yml              # Configuración para ejecución en contenedores
 ├── Dockerfile               # Imagen base del proyecto
 ├── script.Dockerfile        # Imagen secundaria para generación o pruebas
-├── pyproject.toml           # Dependencias y configuración del proyecto
+├── requirements.txt         # Dependencias y configuración del proyecto
 ├── uv.lock                  # Archivo de bloqueo de dependencias
 └── README.md                # Este archivo
 ```
@@ -56,12 +63,12 @@ Cada tarea implementa una técnica distinta de análisis incremental o probabil�
 
 ### Tarea 1
    ```bash
-   python src/main.py --task 1 --data_dir data/
+   python src/main.py --task task_1 --source data/
    ```
 
 ### Tarea 2
    ```bash
-   python src/main.py --task 2 --data_dir data/
+   python src/main.py --task task_2 --source data/
    ```
 
 ### Tarea 3
@@ -71,7 +78,7 @@ Cada tarea implementa una técnica distinta de análisis incremental o probabil�
 
 ### Tarea 4
    ```bash
-   python -m src.main --source data --task task_4 --config config_task_4.json
+   python -m src.main --source data --task task_4 --config .\src\config\config_task_4.json
    ```
 
 ## Pruebas unitarias
@@ -86,94 +93,76 @@ python -m pytest tests/test_task_1.py -v
 ```
 
 ### Explicación de los test por tarea:
-#### Test 3
-✅ test_reservoir_sampling_basic - Verifica el funcionamiento básico del reservoir sampling con distribución equitativa
 
-✅ test_reservoir_sampling_majority - Verifica que el algoritmo identifica correctamente el código HTTP más común cuando hay una mayoría clara (80% de 200s vs 20% de 500s)
+#### Test 1 - Running Averages
+- **test_streaming_log_aggregator**: Valida el cálculo incremental de la tasa de éxito (peticiones 2xx) procesando dos batches secuenciales. Verifica que el promedio acumulado se actualiza correctamente (50% con 1/2 éxitos → 66.7% con 2/3 éxitos) y que las marcas de tiempo reflejan la ventana completa procesada.
 
-✅ test_reservoir_sampling_probability - Verifica que el reservoir sampling mantiene probabilidades aproximadamente iguales con 50 iteraciones
+#### Test 2 - Sliding Windows
+- **test_task_2_sliding_window**: Verifica el conteo de fallas (4xx, 5xx) en ventanas deslizantes de 60 segundos. Procesa tres batches validando que: (1) eventos fuera de ventana se descartan correctamente, (2) el contador se actualiza al agregar nuevas fallas, (3) los límites temporales de la ventana se calculan correctamente (T-60, T).
 
-✅ test_reservoir_with_multiple_codes - Verifica que el algoritmo funciona con múltiples códigos de estado diferentes (200, 500, 404, 503)
+#### Test 3 - Reservoir Sampling
+- **test_reservoir_sampling_basic**: Verifica funcionamiento básico con distribución equitativa
+- **test_reservoir_sampling_majority**: Identifica correctamente el código HTTP más común (80% de 200s vs 20% de 500s)
+- **test_reservoir_sampling_probability**: Mantiene probabilidades uniformes en 50 iteraciones
+- **test_reservoir_with_multiple_codes**: Funciona con múltiples códigos de estado (200, 500, 404, 503)
+- **test_reservoir_size_respected**: Respeta el parámetro reservoir_size configurado
+- **test_empty_source**: Maneja correctamente directorios vacíos y procesa datos al agregarlos
 
-✅ test_reservoir_size_respected - Verifica que el parámetro de tamaño del reservorio se respeta correctamente
+**Verificaciones**: Correctitud del algoritmo, tamaño del reservorio, probabilidad uniforme, manejo de múltiples códigos, robustez ante casos edge, detección del más común.
 
-✅ test_empty_source - Verifica que el algoritmo maneja correctamente un directorio vacío y luego procesa datos cuando se agregan
+#### Test 4 - Bloom Filter
+- **test_task_4_bloom**: Valida el filtrado probabilístico de mensajes usando un Bloom Filter (1024 bytes, 3 funciones hash). Verifica que el filtro identifica correctamente mensajes de interés ("HTTP Status Code: 500") y calcula la proporción de matches (50% cuando 1 de 2 eventos coincide con los patrones configurados).
 
-Lo que verifican estos tests:
-- Correctitud del algoritmo: El reservoir sampling mantiene una muestra representativa
-- Tamaño del reservorio: Se respeta el parámetro reservoir_size
-- Probabilidad uniforme: Cada elemento tiene la misma probabilidad de estar en el reservorio
-- Manejo de múltiples códigos: Funciona con diversos códigos HTTP
-- Robustez: Maneja casos edge como directorios vacíos
-- Detección del más común: Identifica correctamente el código más frecuente
-Todos los tests pasaron en 8.25 segundos
-
-## Docker
-Compila y ejecuta el proyecto usando Docker:
-```bash
-docker compose up --build
-```
-Para levantar los servicios definidos en `compose.yml`.
 ---
+# Detalle de cada tarea
 
-## Task 1: Introducción y Formato de Datos
+## Task 1
 
+**Introducción y Formato de Datos**
 El sistema procesa logs de microservicios. Cada log es un evento que contiene el nombre del servicio, la marca de tiempo de su ocurrencia y un mensaje que describe el evento.
 
 La información de los logs está estandarizada para reportar códigos de estado HTTP bajo el formato: HTTP Status Code: XXX. Esto facilita la comparación del rendimiento y la identificación de errores entre diferentes servicios.
 
 La fuente de datos es un directorio que almacena archivos JSON. Cada objeto JSON dentro de estos archivos representa un evento de log con los campos mencionados.
 
-
-## Task 2: Tareas de Procesamiento de Datos Streaming
-
-El sistema está diseñado para implementar diversas técnicas de análisis sobre flujos de datos continuos.
-
-
-## Tarea 1: Promedios Móviles (Running Averages):
+**Promedios Móviles (Running Averages):**
 
 Esta técnica permite calcular estadísticas de un conjunto de datos en crecimiento sin re-procesar todo el histórico. El promedio $\bar{x}_t$ se calcula en cualquier punto $t$ como la suma acumulada de los elementos $\sum x_i$ dividida por el número de elementos $n_t$ hasta ese momento.Implementación requerida: Desarrollar un algoritmo para calcular de forma continua el número promedio de peticiones exitosas por servicio. Se debe definir claramente qué códigos de estado HTTP (p. ej., rango 2xx) se consideran un éxito.
 
+## Task 2: Tareas de Procesamiento de Datos Streaming
 
-## Tarea 2: Ventanas Deslizantes (Sliding Windows)
-Las ventanas deslizantes son cruciales para calcular métricas que solo son relevantes en un período de tiempo reciente y fijo. Se mantiene en memoria el conjunto de registros que caen dentro del período de la ventana.
+El sistema está diseñado para implementar ventanas deslizantes sobre flujos de datos continuos. Las ventanas deslizantes son cruciales para calcular métricas que solo son relevantes en un período de tiempo reciente y fijo. Se mantiene en memoria el conjunto de registros que caen dentro del período de la ventana.
 
-Implementación requerida: Desarrollar un algoritmo de ventana deslizante para calcular la tasa de peticiones fallidas durante el último minuto. La tasa de fallos se define como la proporción de peticiones que resultaron en un código de error (típicamente 4xx o 5xx) respecto al total de peticiones en ese intervalo de 60 segundos.
-
+Se requiere desarrollar un algoritmo de ventana deslizante para calcular la tasa de peticiones fallidas durante el último minuto. La tasa de fallos se define como la proporción de peticiones que resultaron en un código de error (típicamente 4xx o 5xx) respecto al total de peticiones en ese intervalo de 60 segundos.
 
 ## Task 3: Muestreo (Sampling)
 
-Ante un volumen de datos que no puede ser manejado en su totalidad, se requiere una técnica de muestreo que garantice la representatividad de la muestra en un contexto de flujo de datos (donde el tamaño total es desconocido).
-
-Implementación requerida: Implementar el algoritmo de Muestreo de Depósito (Reservoir Sampling) para determinar el código de estado HTTP más común en el conjunto de datos hasta el momento. Este algoritmo asegura que, en cualquier punto, cada elemento visto tiene la misma probabilidad de ser incluido en la muestra final.
+Ante un volumen de datos que no puede ser manejado en su totalidad, se requiere una técnica de muestreo que garantice la representatividad de la muestra en un contexto de flujo de datos (donde el tamaño total es desconocido). Se requiere implementar el algoritmo de Muestreo de Depósito (Reservoir Sampling) para determinar el código de estado HTTP más común en el conjunto de datos hasta el momento. Este algoritmo asegura que, en cualquier punto, cada elemento visto tiene la misma probabilidad de ser incluido en la muestra final.
 
 
 ## Task 4: Filtrado (Filtering)
 
-Para identificar y aislar eficientemente mensajes de log de interés especial, se necesita una técnica que maneje listas de mensajes grandes sin ocupar demasiada memoria.
-
-Implementación requerida: Utilizar el Filtro de Bloom (Bloom Filter) para decidir si un mensaje de log debería ser reenviado a otro sistema. El Filtro de Bloom se utiliza para realizar una comprobación probabilística y eficiente de la pertenencia de un mensaje a una lista predefinida de mensajes de interés que no cabe en la memoria.
+Para identificar y aislar eficientemente mensajes de log de interés especial, se necesita una técnica que maneje listas de mensajes grandes sin ocupar demasiada memoria. Se requiere utilizar el Filtro de Bloom (Bloom Filter) para decidir si un mensaje de log debería ser reenviado a otro sistema. El Filtro de Bloom se utiliza para realizar una comprobación probabilística y eficiente de la pertenencia de un mensaje a una lista predefinida de mensajes de interés que no cabe en la memoria.
 
 ## Task 5: Streaming con Polars
-Polars facilita el manejo de datos de streaming a través de su interfaz LazyFrame, optimizando las consultas y permitiendo el procesamiento "fuera de memoria".
 
-Propuesta y Resultados:
+Polars facilita el manejo de datos de streaming a través de su interfaz LazyFrame, optimizando las consultas y permitiendo el procesamiento "fuera de memoria".
 
 Se propone calcular la tasa de éxito por servicio utilizando la capacidad de streaming de Polars para procesar grandes volúmenes de logs de manera eficiente. Esta estadística es crucial para monitorear el rendimiento individual de cada microservicio en el flujo continuo de datos.
 
+**Resultados obtenidos:**
 El script procesó 122 archivos JSON con 12,200 eventos y calculó la tasa de éxito por servicio con los siguientes resultados:
 
-evaluation: 36.3% de éxito
+- evaluation: 36.3% de éxito
 
-inference: 34.9% de éxito
+- inference: 34.9% de éxito
 
-monitoring: 36.5% de éxito
+- monitoring: 36.5% de éxito
 
-training: 36.5% de éxito
+- training: 36.5% de éxito
 
 El script está listo para ejecutarse tanto localmente como en EC2 con los datos descargados desde S3.
 
 ## Task 6: Streaming con Spark Streaming
-Apache Spark Structured Streaming es un motor robusto para el procesamiento de datos de streaming que trata los flujos de datos como tablas en continuo crecimiento.
 
-Propuesta requerida: Proponer un conjunto de estadísticas que se puedan calcular de manera ventajosa utilizando la API de Spark Structured Streaming. Se debe explicar por qué las estadísticas elegidas son particularmente adecuadas para el marco de Spark (por ejemplo, agregaciones con estado, uniones de streams o detección de anomalías en tiempo real).
+Apache Spark Structured Streaming es un motor robusto para el procesamiento de datos de streaming que trata los flujos de datos como tablas en continuo crecimiento. Se requiere proponer un conjunto de estadísticas que se puedan calcular de manera ventajosa utilizando la API de Spark Structured Streaming. Se debe explicar por qué las estadísticas elegidas son particularmente adecuadas para el marco de Spark (por ejemplo, agregaciones con estado, uniones de streams o detección de anomalías en tiempo real).
