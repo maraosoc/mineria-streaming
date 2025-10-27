@@ -1,4 +1,5 @@
 #!/bin/bash
+# Logging and error handling
 set -x  # Print commands for debugging
 
 BUCKET="${bucket_name}"
@@ -9,12 +10,24 @@ SOURCE="${source_name}"
 LOGFILE="/home/ubuntu/user_data.log"
 exec > >(tee -a $${LOGFILE}) 2>&1
 
-echo "=== Starting user_data script ==="
+echo "=== Starting user_data script at $(date) ==="
 echo "Bucket: $${BUCKET}"
 echo "Experiment: $${EXPERIMENT}"
 echo "Source: $${SOURCE}"
 
 export HOME=/home/ubuntu
+
+# Function to upload logs immediately on error
+upload_logs() {
+    echo "=== Uploading logs to S3 (called at $(date)) ==="
+    aws s3 cp "$${LOGFILE}" "s3://$${BUCKET}/results/$${EXPERIMENT}/user_data.log" 2>&1 || echo "Failed to upload user_data.log"
+    if [ -f "/home/ubuntu/output.log" ]; then
+        aws s3 cp "/home/ubuntu/output.log" "s3://$${BUCKET}/results/$${EXPERIMENT}/output.log" 2>&1 || echo "Failed to upload output.log"
+    fi
+}
+
+# Upload logs on exit (success or failure)
+trap upload_logs EXIT
 
 # Actualizar sistema e instalar dependencias básicas
 echo "=== Updating system and installing dependencies ==="
@@ -50,7 +63,7 @@ echo "=== Downloading data from S3 ==="
 aws s3 sync s3://$${BUCKET}/data/ /home/ubuntu/$${EXPERIMENT}/data/
 
 # Verificar que hay datos
-DATA_COUNT=$$(ls -1 /home/ubuntu/$${EXPERIMENT}/data/*.json 2>/dev/null | wc -l)
+DATA_COUNT=$(ls -1 /home/ubuntu/$${EXPERIMENT}/data/*.json 2>/dev/null | wc -l)
 echo "Found $${DATA_COUNT} JSON files"
 
 if [ $${DATA_COUNT} -eq 0 ]; then
@@ -59,24 +72,31 @@ if [ $${DATA_COUNT} -eq 0 ]; then
 fi
 
 # Cambiar al directorio del experimento
-cd /home/ubuntu/$${EXPERIMENT}/
+cd /home/ubuntu/$${EXPERIMENT}/ || {
+    echo "ERROR: Failed to change to experiment directory"
+    exit 1
+}
 
 # Ejecutar el script y capturar toda la salida
-echo "=== Executing main.py ==="
+echo "=== Executing main.py at $(date) ==="
 python3 main.py --input /home/ubuntu/$${EXPERIMENT}/data > /home/ubuntu/output.log 2>&1
-EXIT_CODE=$$?
+EXIT_CODE=$?
 
-# Agregar información de ejecución
+echo "=== main.py execution finished with exit code: $${EXIT_CODE} at $(date) ==="
+
+# Agregar información de ejecución al output.log
 echo "" >> /home/ubuntu/output.log
 echo "=== Execution completed ===" >> /home/ubuntu/output.log
 echo "Exit code: $${EXIT_CODE}" >> /home/ubuntu/output.log
-echo "Timestamp: $$(date)" >> /home/ubuntu/output.log
+echo "Timestamp: $(date)" >> /home/ubuntu/output.log
 
-# Subir resultados a S3
-echo "=== Uploading results to S3 ==="
-aws s3 cp "/home/ubuntu/output.log" s3://$${BUCKET}/results/$${EXPERIMENT}/output.log
+# Mostrar el contenido de output.log en user_data.log para debugging
+echo "=== Output.log content ==="
+cat /home/ubuntu/output.log
+echo "=== End of output.log ==="
 
-# También subir el log de user_data para debugging
-aws s3 cp "$${LOGFILE}" s3://$${BUCKET}/results/$${EXPERIMENT}/user_data.log
+# Los logs se subirán automáticamente por el trap EXIT
+echo "=== Script completed at $(date) ==="
 
-echo "=== Script completed successfully ==="
+# Señal de finalización exitosa
+echo "USER_DATA_COMPLETED" >> $${LOGFILE}
