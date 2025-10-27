@@ -115,73 +115,54 @@ docker compose up --build
 ```
 Para levantar los servicios definidos en `compose.yml`.
 ---
-# Streaming Data Analysis - Teacher explanation
 
-## Introduction
+## Task 1: Introducción y Formato de Datos
 
-You are working on a system that aggregates logs from multiple microservices. For each log is registered as an event containing the following information:
+El sistema procesa logs de microservicios. Cada log es un evento que contiene el nombre del servicio, la marca de tiempo de su ocurrencia y un mensaje que describe el evento.
 
-* The service name
-* The timestamp when it occurred
-* An *almost* arbitrary message about what happened.
+La información de los logs está estandarizada para reportar códigos de estado HTTP bajo el formato: HTTP Status Code: XXX. Esto facilita la comparación del rendimiento y la identificación de errores entre diferentes servicios.
 
-In principle, the message can be arbitrary, the developer picks the message they want to log at anytime to help them debug. However, logging the status code of the response of any microservice is standarized so that they all look like HTTP Status Code: XXX. This way you can easily compare different services and see which one has more errors.
-
-The data source for the task is going to be a directory in which JSON files are stored. Each JSON file looks like:
-
-```json
-{"service": "monitoring", "timestamp": 1745319168.057018, "message": "HTTP Status Code: 200"}
-```
-
-## Task 1: Running Averages
-
-This is the simplest way to compute statistics overan ever growing dataset. You need to figure out a way to compute statistics about your data by delaying the execution of formulas that require information about a dataset. Recall that the formular for computing an average is:
-
-$$
-\bar{x} = \frac{1}{n} \sum_{i=1}^{n} x_i
-$$
-
-Where $n$ is the number of elements in the dataset and $x_i$ is the $i$-th element in the dataset. Now, you could keep two counters, one for the number of elements and one for the sum of the elements. Then, you could compute the average by dividing the sum by the number of elements at that point in time, the formula would be like:
-
-$$
-\bar{x}_t = \frac{1}{n_t} \sum_{i=1}^{n_t} x_i
-$$
-
-It is important to highlight that you compute statistics up to a point with this method.
-
-For this task you need to implement an algorithm that allows you to compute the average number of successful requests per service.
+La fuente de datos es un directorio que almacena archivos JSON. Cada objeto JSON dentro de estos archivos representa un evento de log con los campos mencionados.
 
 
-## Task 2: Sliding Windows
+## Task 2: Tareas de Procesamiento de Datos Streaming
 
-There are some statistics that are relevant over a certain period of time. For example, you might want to compute the average number of unsuccessful requests over the last 10 minutes. To do this, you can use a sliding window: keep track of records over a fixed period of time and compute the statistics over those records that you allow yourself to keep in memory.
-
-Implement an sliding window algorithm that allows you to compute the **rate of unsuccessful requests** over the last minute.
+El sistema está diseñado para implementar diversas técnicas de análisis sobre flujos de datos continuos.
 
 
-## Task 3: Sampling
+## Tarea 1: Promedios Móviles (Running Averages):
 
-There are situations in which we need to take samples of the data to be able to compute any statistic. However, when working with streaming data, you need to keep into account that the full set of elements for which you want to compute statistics is not available. Let's say you want need a sample and you want to make sure that the sample is representative of the full dataset; how do you ensure that the samples are chosen in a truly random way?
-
-Your task now is to implement the Reservoir Sampling algorithm to figure out *the most commong HTTP Status Code in the dataset*. Here is another reference: https://medium.com/pythoneers/dipping-into-data-streams-the-magic-of-reservoir-sampling-762f41b78781
+Esta técnica permite calcular estadísticas de un conjunto de datos en crecimiento sin re-procesar todo el histórico. El promedio $\bar{x}_t$ se calcula en cualquier punto $t$ como la suma acumulada de los elementos $\sum x_i$ dividida por el número de elementos $n_t$ hasta ese momento.Implementación requerida: Desarrollar un algoritmo para calcular de forma continua el número promedio de peticiones exitosas por servicio. Se debe definir claramente qué códigos de estado HTTP (p. ej., rango 2xx) se consideran un éxito.
 
 
-## Task 4: Filtering
+## Tarea 2: Ventanas Deslizantes (Sliding Windows)
+Las ventanas deslizantes son cruciales para calcular métricas que solo son relevantes en un período de tiempo reciente y fijo. Se mantiene en memoria el conjunto de registros que caen dentro del período de la ventana.
 
-Our system is connected to a lot of services, all of them generating a lot of logs. However, there are some type of messages in the logs, for which we are specially interested. Those messages for which we are interested, should be sent to another system (e.g. a database).
+Implementación requerida: Desarrollar un algoritmo de ventana deslizante para calcular la tasa de peticiones fallidas durante el último minuto. La tasa de fallos se define como la proporción de peticiones que resultaron en un código de error (típicamente 4xx o 5xx) respecto al total de peticiones en ese intervalo de 60 segundos.
 
-Let's say we have a list of messages that we are interested in and they are stored in a file, but the file is too big to fit in memmory. Use the [Bloom Filter](https://en.wikipedia.org/wiki/Bloom_filter) technique to decide whether those messages should be forwarded to antoher system or not.
 
-## Task 5: Polars Streaming
+## Task 3: Muestreo (Sampling)
 
-Polars can handle streaming data by using the LazyFrame interface. Read its documentation and propose some statistics that you can compute with its API. Feel free to decide which set of statistics are interesting to compute with this approach and explain why you chose those. References:
+Ante un volumen de datos que no puede ser manejado en su totalidad, se requiere una técnica de muestreo que garantice la representatividad de la muestra en un contexto de flujo de datos (donde el tamaño total es desconocido).
 
-* https://docs.pola.rs/user-guide/concepts/streaming/ 
-* https://urbandataengineer.substack.com/p/big-data-small-machine-the-magic/
-* https://www.rhosignal.com/posts/streaming-in-polars/
-* https://www.rhosignal.com/posts/streaming-operations-in-polars/ 
+Implementación requerida: Implementar el algoritmo de Muestreo de Depósito (Reservoir Sampling) para determinar el código de estado HTTP más común en el conjunto de datos hasta el momento. Este algoritmo asegura que, en cualquier punto, cada elemento visto tiene la misma probabilidad de ser incluido en la muestra final.
 
-## Task 6: Spark Streaming
+
+## Task 4: Filtrado (Filtering)
+
+Para identificar y aislar eficientemente mensajes de log de interés especial, se necesita una técnica que maneje listas de mensajes grandes sin ocupar demasiada memoria.
+
+Implementación requerida: Utilizar el Filtro de Bloom (Bloom Filter) para decidir si un mensaje de log debería ser reenviado a otro sistema. El Filtro de Bloom se utiliza para realizar una comprobación probabilística y eficiente de la pertenencia de un mensaje a una lista predefinida de mensajes de interés que no cabe en la memoria.
+
+## Task 5: Streaming con Polars
+Polars facilita el manejo de datos de streaming a través de su interfaz LazyFrame, optimizando las consultas y permitiendo el procesamiento "fuera de memoria".
+
+Propuesta requerida: Proponer un conjunto de estadísticas que se puedan calcular de manera ventajosa utilizando la API de streaming de Polars. Se debe explicar por qué las estadísticas elegidas son particularmente adecuadas para este enfoque (por ejemplo, conteo de logs por hora y por servicio o el percentil 95 del tiempo de ocurrencia).
+
+## Task 6: Streaming con Spark Streaming
+Apache Spark Structured Streaming es un motor robusto para el procesamiento de datos de streaming que trata los flujos de datos como tablas en continuo crecimiento.
+
+Propuesta requerida: Proponer un conjunto de estadísticas que se puedan calcular de manera ventajosa utilizando la API de Spark Structured Streaming. Se debe explicar por qué las estadísticas elegidas son particularmente adecuadas para el marco de Spark (por ejemplo, agregaciones con estado, uniones de streams o detección de anomalías en tiempo real).
 
 Spark can handle streaming data by using the Structured Streaming API. Read its documentation and propose some statistics that you can compute with its API. Feel free to decide which set of statistics are interesting to compute with this approach and explain why you chose those. References:
 * https://spark.apache.org/docs/latest/streaming-programming-guide.html
