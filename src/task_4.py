@@ -2,113 +2,121 @@
 import datetime
 import hashlib
 import json
-import math
 import pathlib
-import threading
 import time
+import queue
+import concurrent.futures
 from typing import Any, Iterator
+import domain
 
-from . import domain
 
 class BloomFilter:
-    def __init__(self, m_bits: int, k: int):
-        self.m = m_bits
-        self.k = k
-        self.bits = bytearray((m_bits + 7) // 8)
+    """Implementación ligera de un filtro de Bloom en memoria."""
 
-    def _set_bit(self, idx: int) -> None:
-        byte_i = idx // 8
-        bit_i = idx % 8
-        self.bits[byte_i] |= (1 << bit_i)
+    def __init__(self, bit_count: int, hash_count: int):
+        self.bit_count = bit_count
+        self.hash_count = hash_count
+        self._bit_array = bytearray((bit_count + 7) // 8)
 
-    def _get_bit(self, idx: int) -> bool:
-        byte_i = idx // 8
-        bit_i = idx % 8
-        return (self.bits[byte_i] >> bit_i) & 1 == 1
+    def _bit_index(self, index: int) -> tuple[int, int]:
+        return index // 8, index % 8
 
-    def _hashes(self, s: str) -> list[int]:
-        res = []
-        for i in range(self.k):
-            h = hashlib.sha256((str(i) + "|" + s).encode("utf-8")).digest()
-            # usa 4 bytes para entero
-            val = int.from_bytes(h[:4], byteorder="big", signed=False)
-            res.append(val % self.m)
-        return res
+    def _set_bit(self, index: int) -> None:
+        byte_idx, bit_idx = self._bit_index(index)
+        self._bit_array[byte_idx] |= (1 << bit_idx)
 
-    def add(self, s: str) -> None:
-        for h in self._hashes(s):
-            self._set_bit(h)
+    def _get_bit(self, index: int) -> bool:
+        byte_idx, bit_idx = self._bit_index(index)
+        return bool(self._bit_array[byte_idx] & (1 << bit_idx))
 
-    def __contains__(self, s: str) -> bool:
-        return all(self._get_bit(h) for h in self._hashes(s))
+    def _hash_indices(self, value: str) -> list[int]:
+        """Genera los índices de hash que se utilizarán para marcar bits."""
+        encoded = value.encode("utf-8")
+        indices = []
+        for i in range(self.hash_count):
+            digest = hashlib.sha256(i.to_bytes(2, "big") + encoded).digest()
+            indices.append(int.from_bytes(digest[:4], "big") % self.bit_count)
+        return indices
+
+    def add(self, value: str) -> None:
+        for idx in self._hash_indices(value):
+            self._set_bit(idx)
+
+    def __contains__(self, value: str) -> bool:
+        return all(self._get_bit(idx) for idx in self._hash_indices(value))
 
 
-def _load_filter(filter_file: pathlib.Path, m_bits: int, k_hashes: int) -> BloomFilter:
-    bf = BloomFilter(m_bits, k_hashes)
-    with open(filter_file, "r", encoding="utf-8", errors="ignore") as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            bf.add(line)
+def load_bloom_filter(path: pathlib.Path, bit_count: int, hash_count: int) -> BloomFilter:
+    """Carga un filtro de Bloom con las cadenas contenidas en un archivo."""
+    bf = BloomFilter(bit_count, hash_count)
+    try:
+        with path.open("r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    bf.add(line)
+    except FileNotFoundError:
+        raise RuntimeError(f"No se encontró el archivo de filtro: {path}")
     return bf
+
+
+def producer(source_dir: str, output_queue: queue.Queue, stop_signal: Any) -> None:
+    """Lee archivos JSON nuevos del directorio y los envía por la cola."""
+    path = pathlib.Path(source_dir)
+    processed_files: set[str] = set()
+
+    while not stop_signal.is_set():
+        for file in path.glob("*.json"):
+            if file.name in processed_files:
+                continue
+
+            processed_files.add(file.name)
+            try:
+                with file.open("r", encoding="utf-8") as f:
+                    data = json.load(f)
+                if isinstance(data, dict):
+                    data = [data]
+                output_queue.put(data)
+            except (json.JSONDecodeError, OSError):
+                
+                continue
+
+        time.sleep(0.5)
 
 
 def compute(
     source: str,
-    stop: threading.Event,
+    stop: Any,
     filter_file: str,
-    m_bits: int = 1_000_000,  # ~122KB
+    m_bits: int = 1_000_000,
     k_hashes: int = 7,
     **_: Any,
 ) -> Iterator[domain.Result]:
-    """
-    value = ratio reenviados (Bloom-hit) en el último batch.
-    """
-    q: "queue.Queue[list[dict]]"
-    import queue
-    q = queue.Queue()
 
-    bf = _load_filter(pathlib.Path(filter_file), m_bits, k_hashes)
+    data_queue: queue.Queue[list[dict]] = queue.Queue()
+    bloom_filter = load_bloom_filter(pathlib.Path(filter_file), m_bits, k_hashes)
 
-    producer_thread = threading.Thread(target=producer, args=(source, q, stop))
-    producer_thread.start()
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+        executor.submit(producer, source, data_queue, stop)
 
-    while not stop.is_set():
-        batch = q.get()
-        if not batch:
-            q.task_done()
-            continue
-
-        fwd = 0
-        newest_ts = max(float(e["timestamp"]) for e in batch)
-        oldest_ts = min(float(e["timestamp"]) for e in batch)
-
-        for e in batch:
-            msg = str(e["message"])
-            if msg in bf:
-                fwd += 1
-
-        value = fwd / len(batch)
-        yield domain.Result(
-            value=value,
-            newest_considered=datetime.datetime.fromtimestamp(newest_ts),
-            oldest_considered=datetime.datetime.fromtimestamp(oldest_ts),
-        )
-        q.task_done()
-
-
-def producer(source: str, queue: "queue.Queue[list[dict]]", stop: threading.Event) -> None:
-    path = pathlib.Path(source)
-    seen: set[str] = set()
-    while not stop.is_set():
-        for file in path.glob("*.json"):
-            if file.name in seen:
+        while not stop.is_set():
+            try:
+                batch = data_queue.get(timeout=1)
+            except queue.Empty:
                 continue
-            seen.add(file.name)
-            with open(file) as f:
-                data = json.load(f)
-            if isinstance(data, dict):
-                data = [data]
-            queue.put(data)
-        time.sleep(1)
+
+            if not batch:
+                continue
+
+            timestamps = [float(e["timestamp"]) for e in batch if "timestamp" in e]
+            if not timestamps:
+                continue
+
+            fwd_hits = sum(1 for e in batch if str(e.get("message", "")) in bloom_filter)
+            ratio = fwd_hits / len(batch)
+
+            yield domain.Result(
+                value=ratio,
+                newest_considered=datetime.datetime.fromtimestamp(max(timestamps)),
+                oldest_considered=datetime.datetime.fromtimestamp(min(timestamps)),
+            )
