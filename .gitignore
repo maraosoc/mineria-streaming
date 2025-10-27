@@ -39,3 +39,9 @@ tmp/
 
 # Data temporales de task_3
 data/task_3/
+
+# Terraform files
+*.tfstate
+*.tfstate.backup
+*.terraform.lock.hcl
+.terraform/

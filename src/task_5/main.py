@@ -1,3 +1,16 @@
+"""
+Task 5: Procesamiento de logs con Polars LazyFrame
+
+Este script procesa archivos JSON de logs para calcular la tasa de éxito
+de servicios en ventanas de tiempo usando Polars.
+
+Uso:
+  - Local:  python main.py --input data
+  - En S3:  python main.py --input /home/ubuntu/EXPERIMENT/data
+  
+El argumento --input es opcional y por defecto usa 'data' para ejecución local.
+"""
+
 import polars as pl
 from typing import Optional
 import argparse
@@ -8,7 +21,7 @@ import os # Importamos os para manejar rutas
 _STATUS_RE = r'HTTP Status Code:\s*(\d+)'
 
 def process_data_lazy(
-    source_folder: str, # Cambiamos el nombre del parámetro para mayor claridad
+    source_folder: str, 
     *,
     window_duration: str,
     slide_duration: Optional[str] = None,
@@ -31,8 +44,27 @@ def process_data_lazy(
 
     # 1. Carga de datos de forma Lazy
     try:
-        # Usamos el patrón glob para escanear todos los archivos JSON en la carpeta
-        raw_lf = pl.scan_json(json_pattern)
+        # Para Polars, necesitamos leer todos los archivos JSON y concatenarlos
+        # Usamos glob para encontrar todos los archivos
+        import glob
+        json_files = glob.glob(json_pattern)
+        
+        if not json_files:
+            print(f"Error: No se encontraron archivos JSON en '{json_pattern}'.", file=sys.stderr)
+            sys.exit(1)
+        
+        print(f"Encontrados {len(json_files)} archivos JSON")
+        
+        # Leemos todos los archivos y los concatenamos
+        # Usamos scan_ndjson si son archivos de líneas o read_json + concat para arrays JSON
+        dataframes = []
+        for json_file in json_files:
+            df = pl.read_json(json_file)
+            dataframes.append(df)
+        
+        # Concatenamos todos los dataframes y convertimos a LazyFrame
+        raw_lf = pl.concat(dataframes).lazy()
+        
     except Exception as e:
         # Capturamos errores si no encuentra archivos o hay un error de I/O
         print(f"Error: No se pudo escanear archivos JSON en '{json_pattern}'. Asegúrate de que la ruta de la carpeta es correcta y contiene archivos JSON. Detalles: {e}", file=sys.stderr)
@@ -60,23 +92,18 @@ def process_data_lazy(
         ])
     )
 
+    # Simplificamos: agrupar por servicio y obtener estadísticas generales
     windowed_lf = (
         parsed_lf
-        .group_by_dynamic(
-            index="event_time",
-            every=slide,
-            period=window_duration,
-            closed='left',
-            group_by=['service'],
-        )
+        .group_by(['service'])
         .agg([
-            pl.count().alias('total'),
+            pl.len().alias('total'),
             pl.sum('is_success').alias('successes'),
+            pl.min('event_time').alias('window_start'),
+            pl.max('event_time').alias('window_end'),
         ])
         .with_columns([
             (pl.col('successes') / pl.col('total')).cast(pl.Float64).alias('success_rate'),
-            pl.col('event_time').alias('window_start'),
-            (pl.col('event_time') + pl.duration(window_duration)).alias('window_end')
         ])
         .select([
             'service', 
@@ -86,7 +113,7 @@ def process_data_lazy(
             'successes', 
             'success_rate'
         ])
-        .sort(['window_start', 'service'])
+        .sort('service')
     )
 
     return windowed_lf
@@ -101,11 +128,13 @@ def main():
         description="Calcula la tasa de éxito de servicios en ventanas de tiempo usando Polars LazyFrame."
     )
 
-    # Argumento posicional obligatorio para la ruta de la CARPETA
+    # Argumento opcional para la ruta de la CARPETA con valor por defecto
     parser.add_argument(
-        'source_folder', # Renombrado para claridad
+        '--input', # Renombrado para ser consistente con user_data.sh
+        dest='source_folder',
         type=str,
-        help='Ruta de la carpeta que contiene los archivos JSON de log. Polars buscará todos los archivos "*.json" dentro.'
+        default='data',  # Valor por defecto para ejecución local
+        help='Ruta de la carpeta que contiene los archivos JSON de log. Polars buscará todos los archivos "*.json" dentro. Por defecto: data'
     )
 
     # Argumentos opcionales con valores predeterminados

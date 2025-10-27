@@ -12,11 +12,10 @@ resource "aws_instance" "this" {
     volume_type = "gp3"
   }
 
-  user_data = templatefile("../user_data.sh", {
+  user_data = templatefile("${path.module}/user_data.sh", {
     experiment_name = var.experiment_name
     source_name     = var.source_name
     bucket_name     = var.bucket_name
-    data_size       = var.data_size
   })
 
   tags = {

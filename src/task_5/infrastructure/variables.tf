@@ -31,19 +31,9 @@ variable "bucket_name" {
   default = "maraosoc-mineria-benchmark"
 }
 
-variable "key_pair_name" {
-  type        = string
-  description = "Acces Key of your AWS account"
-}
-
 variable "instance_type" {
   type    = string
   default = "m5.2xlarge"
-}
-
-variable "script_path" {
-  description = "Script initializer path"
-  type        = string
 }
 
 variable "source_name" {
