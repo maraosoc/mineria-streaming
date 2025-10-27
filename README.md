@@ -2,7 +2,11 @@
 > Realizado por: Manuela Ramos Ospina, Paula Andrea Pirela Rios y Carlos Eduardo Baez Coronado
 
 # Video explicativo
-[![Video explicativo](thumbnail_video.jpg)](https://www.youtube.com/watch?v=9TGhIqmpdgo)
+<p align="center">
+  <a href="https://drive.google.com/file/d/1s0q__G3y4U1ihJoYIE7KIUrH1OPvB19N/view" target="_blank">
+    <img src="thumbnail_video.jpg" alt="Demo del modelo" width="400">
+  </a>
+</p>
 
 Este proyecto implementa diferentes enfoques para procesar flujos de datos (streams) en tiempo real, simulando un sistema que recibe logs de múltiples microservicios.
 Cada tarea implementa una técnica distinta de análisis incremental o probabilístico sobre datos en continuo crecimiento.
